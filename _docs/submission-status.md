@@ -14,14 +14,14 @@ Orchestrator clean public-clone verification: `npm ci` succeeded; `npm test` **2
 | --- | --- |
 | [1 Foundation](https://github.com/mjesenuly/tournament-tracker/issues/1) | QA PASS; GitHub UI closure confirmed before 13:10 UTC+5 |
 | [2 Authentication](https://github.com/mjesenuly/tournament-tracker/issues/2) | Open / BLOCKED: configured live Google sign-in unverified |
-| [3 Dashboard](https://github.com/mjesenuly/tournament-tracker/issues/3) | QA PASS; open pending explicit authorization for closure |
-| [4 Applications](https://github.com/mjesenuly/tournament-tracker/issues/4) | QA PASS; open pending explicit authorization for closure |
-| [5 Scheduling](https://github.com/mjesenuly/tournament-tracker/issues/5) | QA PASS; open pending explicit authorization for closure |
-| [6 Results](https://github.com/mjesenuly/tournament-tracker/issues/6) | QA PASS; open pending explicit authorization for closure |
-| [7 Replacements](https://github.com/mjesenuly/tournament-tracker/issues/7) | QA PASS; open pending explicit authorization for closure |
+| [3 Dashboard](https://github.com/mjesenuly/tournament-tracker/issues/3) | QA PASS; Closed in GitHub, confirmed before 13:29 UTC+5 |
+| [4 Applications](https://github.com/mjesenuly/tournament-tracker/issues/4) | QA PASS; Closed in GitHub, confirmed before 13:29 UTC+5 |
+| [5 Scheduling](https://github.com/mjesenuly/tournament-tracker/issues/5) | QA PASS; Closed in GitHub, confirmed before 13:29 UTC+5 |
+| [6 Results](https://github.com/mjesenuly/tournament-tracker/issues/6) | QA PASS; Closed in GitHub, confirmed before 13:29 UTC+5 |
+| [7 Replacements](https://github.com/mjesenuly/tournament-tracker/issues/7) | QA PASS; Closed in GitHub, confirmed before 13:29 UTC+5 |
 | [8 Verification](https://github.com/mjesenuly/tournament-tracker/issues/8) | Open / BLOCKED: overall acceptance depends on live Google verification |
 
-Automatic approval review rejected attempted issue 3 closure because explicit issue-status-change authorization was missing. Approval remains pending at this handoff; issues 3–7 are not claimed closed.
+Automatic approval review initially rejected attempted issue 3 closure because explicit issue-status-change authorization was missing. The user then explicitly authorized publishing the engineer/QA handoffs and closing issues 3–7. Both comments were posted on each issue, and each closure was confirmed in GitHub before 13:29 UTC+5 on 2026-10-13. The issue list now shows two open issues (2 and 8); six core issues are closed before the 14:20 deadline.
 
 Google setup from zero was requested, but https://console.cloud.google.com displayed Site Unavailable. Credential configuration and real provider sign-in remain blocked. Demo/test identity is not live Google evidence. No cloud hosting deployment or browser viewport screenshots are claimed.
 
