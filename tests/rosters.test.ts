@@ -1,2 +1,174 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {createApp} from '../server/app.js';import {openDatabase} from '../server/db.js';
-test('manual midpoint window atomic replacements retain eligibility and delayed match historical roster',async()=>{const db=openDatabase(':memory:');const app=createApp(db,{demo:true});for(const role of ['organizer','captain'])db.prepare('INSERT INTO users VALUES(?,?,?,?,?)').run('demo-'+role,null,role+'@demo.invalid','Demo '+role,role);db.prepare('INSERT INTO tournaments(id,organizer_id,name,status) VALUES(?,?,?,?)').run('t','demo-organizer','Cup','ongoing');for(const team of ['a','b','c']){db.prepare('INSERT INTO applications VALUES(?,?,?,?,?,?,?)').run(team,'t','demo-captain',team,'Captain','private','accepted');for(let i=0;i<6;i++){db.prepare('INSERT INTO players VALUES(?,?,?,?,?,?,?)').run(team+i,'t',team,'Player '+i,team+i,i+1,i===0?'Goalkeeper':'Forward');db.prepare('INSERT INTO memberships(player_id,application_id,joined_at) VALUES(?,?,?)').run(team+i,team,'2026-01-01');db.prepare('INSERT INTO eligibility VALUES(?,?,?)').run('t',team+i,team);}}for(const [fid,h,a,status]of [['f1','a','b','finished'],['f2','a','c','finished'],['f3','b','c','scheduled']])db.prepare('INSERT INTO fixtures(id,tournament_id,home_id,away_id,round,status,scheduled_at,home_score,away_score) VALUES(?,?,?,?,?,?,?,?,?)').run(fid,'t',h,a,1,status,'2026-02-01T12:00:00Z',0,0);const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));const base=`http://127.0.0.1:${(server.address()as any).port}/api`;let headers:any={'content-type':'application/json'};async function call(path:string,body:any,method='POST'){const r=await fetch(base+path,{method,headers,body:JSON.stringify(body)});return{status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}async function login(role:string){headers={'content-type':'application/json'};const r=await call('/auth/demo',{role});headers={...headers,cookie:r.cookie,'x-csrf-token':r.data.csrf};}try{await login('organizer');assert.equal((await call('/tournaments/t/roster-window',{open:true})).status,200);await login('captain');let change={applicationId:'b',removeIds:['b1'],replacements:[{name:'New player',studentId:'new',shirtNumber:2,position:'Forward'}]};const r=await call('/tournaments/t/roster-requests',change);assert.equal(r.status,201);assert.equal(db.prepare("SELECT COUNT(*) n FROM memberships WHERE application_id='b' AND removed_at IS NULL").get()?.n,6);assert.equal((await call('/tournaments/t/roster-requests/'+r.data.id+'/review',{status:'accepted'})).status,403);await login('organizer');assert.equal((await call('/tournaments/t/roster-requests/'+r.data.id+'/review',{status:'accepted'})).status,200);assert.ok(db.prepare('SELECT removed_at FROM memberships WHERE player_id=?').get('b1')?.removed_at);assert.ok(db.prepare('SELECT * FROM eligibility WHERE student_id=?').get('b1'));assert.equal((await call('/tournaments/t/fixtures/f3/result',{homeScore:1,awayScore:0,goals:[{playerId:'b1',ownGoal:false}]},'PUT')).status,200);assert.ok(db.prepare('SELECT * FROM fixture_players WHERE fixture_id=? AND player_id=?').get('f3','b1'));const newer=db.prepare('SELECT id FROM players WHERE student_id=?').get('NEW')!;assert.equal((await call('/tournaments/t/fixtures/f3/result',{homeScore:1,awayScore:0,goals:[{playerId:newer.id,ownGoal:false}]},'PUT')).status,400);}finally{await new Promise<void>(r=>server.close(()=>r()));db.close();}});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createApp } from "../server/app.js";
+import { openDatabase } from "../server/db.js";
+test("manual midpoint window atomic replacements retain eligibility and delayed match historical roster", async () => {
+  const db = openDatabase(":memory:");
+  const app = createApp(db, { demo: true });
+  for (const role of ["organizer", "captain"])
+    db.prepare("INSERT INTO users VALUES(?,?,?,?,?)").run(
+      "demo-" + role,
+      null,
+      role + "@demo.invalid",
+      "Demo " + role,
+      role,
+    );
+  db.prepare(
+    "INSERT INTO tournaments(id,organizer_id,name,status) VALUES(?,?,?,?)",
+  ).run("t", "demo-organizer", "Cup", "ongoing");
+  for (const team of ["a", "b", "c"]) {
+    db.prepare("INSERT INTO applications VALUES(?,?,?,?,?,?,?)").run(
+      team,
+      "t",
+      "demo-captain",
+      team,
+      "Captain",
+      "private",
+      "accepted",
+    );
+    for (let i = 0; i < 6; i++) {
+      db.prepare("INSERT INTO players VALUES(?,?,?,?,?,?,?)").run(
+        team + i,
+        "t",
+        team,
+        "Player " + i,
+        team + i,
+        i + 1,
+        i === 0 ? "Goalkeeper" : "Forward",
+      );
+      db.prepare(
+        "INSERT INTO memberships(player_id,application_id,joined_at) VALUES(?,?,?)",
+      ).run(team + i, team, "2026-01-01");
+      db.prepare("INSERT INTO eligibility VALUES(?,?,?)").run(
+        "t",
+        team + i,
+        team,
+      );
+    }
+  }
+  for (const [fid, h, a, status] of [
+    ["f1", "a", "b", "finished"],
+    ["f2", "a", "c", "finished"],
+    ["f3", "b", "c", "scheduled"],
+  ])
+    db.prepare(
+      "INSERT INTO fixtures(id,tournament_id,home_id,away_id,round,status,scheduled_at,home_score,away_score) VALUES(?,?,?,?,?,?,?,?,?)",
+    ).run(fid, "t", h, a, 1, status, "2026-02-01T12:00:00Z", 0, 0);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
+  let headers: any = { "content-type": "application/json" };
+  async function call(path: string, body: any, method = "POST") {
+    const r = await fetch(base + path, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+    });
+    return {
+      status: r.status,
+      data: await r.json(),
+      cookie: r.headers.get("set-cookie")?.split(";")[0],
+    };
+  }
+  async function login(role: string) {
+    headers = { "content-type": "application/json" };
+    const r = await call("/auth/demo", { role });
+    headers = { ...headers, cookie: r.cookie, "x-csrf-token": r.data.csrf };
+  }
+  try {
+    await login("organizer");
+    assert.equal(
+      (await call("/tournaments/t/roster-window", { open: true })).status,
+      200,
+    );
+    await login("captain");
+    let change = {
+      applicationId: "b",
+      removeIds: ["b1"],
+      replacements: [
+        {
+          name: "New player",
+          studentId: "new",
+          shirtNumber: 2,
+          position: "Forward",
+        },
+      ],
+    };
+    const r = await call("/tournaments/t/roster-requests", change);
+    assert.equal(r.status, 201);
+    assert.equal(
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM memberships WHERE application_id='b' AND removed_at IS NULL",
+        )
+        .get()?.n,
+      6,
+    );
+    assert.equal(
+      (
+        await call("/tournaments/t/roster-requests/" + r.data.id + "/review", {
+          status: "accepted",
+        })
+      ).status,
+      403,
+    );
+    await login("organizer");
+    assert.equal(
+      (
+        await call("/tournaments/t/roster-requests/" + r.data.id + "/review", {
+          status: "accepted",
+        })
+      ).status,
+      200,
+    );
+    assert.ok(
+      db
+        .prepare("SELECT removed_at FROM memberships WHERE player_id=?")
+        .get("b1")?.removed_at,
+    );
+    assert.ok(
+      db.prepare("SELECT * FROM eligibility WHERE student_id=?").get("b1"),
+    );
+    assert.equal(
+      (
+        await call(
+          "/tournaments/t/fixtures/f3/result",
+          {
+            homeScore: 1,
+            awayScore: 0,
+            goals: [{ playerId: "b1", ownGoal: false }],
+          },
+          "PUT",
+        )
+      ).status,
+      200,
+    );
+    assert.ok(
+      db
+        .prepare(
+          "SELECT * FROM fixture_players WHERE fixture_id=? AND player_id=?",
+        )
+        .get("f3", "b1"),
+    );
+    const newer = db
+      .prepare("SELECT id FROM players WHERE student_id=?")
+      .get("NEW")!;
+    assert.equal(
+      (
+        await call(
+          "/tournaments/t/fixtures/f3/result",
+          {
+            homeScore: 1,
+            awayScore: 0,
+            goals: [{ playerId: newer.id, ownGoal: false }],
+          },
+          "PUT",
+        )
+      ).status,
+      400,
+    );
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    db.close();
+  }
+});
