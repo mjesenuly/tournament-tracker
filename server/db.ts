@@ -1,8 +1,10 @@
-import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-export function openDatabase(path = process.env.DATABASE_PATH || './data/tournament-tracker.sqlite') {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+import { DatabaseSync } from "node:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+export function openDatabase(
+  path = process.env.DATABASE_PATH || "./data/tournament-tracker.sqlite",
+) {
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, google_sub TEXT UNIQUE, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'captain' CHECK(role IN ('captain','organizer')));
@@ -18,7 +20,13 @@ export function openDatabase(path = process.env.DATABASE_PATH || './data/tournam
   return db;
 }
 export function transaction<T>(db: DatabaseSync, action: () => T): T {
-  db.exec('BEGIN IMMEDIATE');
-  try { const result = action(); db.exec('COMMIT'); return result; }
-  catch (error) { db.exec('ROLLBACK'); throw error; }
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = action();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
