@@ -35,6 +35,7 @@ const cup = {
   name: "Campus Cup",
   description: "Football on campus",
   venue: "Pitch A",
+  start_date: "2026-10-13",
   status: "registration",
   team_count: 0,
   match_count: 0,
@@ -103,6 +104,7 @@ test("organizer creates tournament with CSRF and required metadata", async () =>
   await u.click(screen.getByRole("button", { name: "Create tournament" }));
   await u.type(screen.getByLabelText("Tournament name"), "Fresh Cup");
   await u.type(screen.getByLabelText("Default venue"), "Pitch B");
+  await u.type(screen.getByLabelText("Start date"), "2026-10-13");
   await u.click(screen.getByRole("button", { name: "Save tournament" }));
   await waitFor(() =>
     assert.ok(
