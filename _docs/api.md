@@ -28,3 +28,5 @@ All routes are under `/api`. JSON requests use Content-Type: application/json. S
 | POST | /tournaments/:id/roster-requests/:requestId/review | Owner accepts/rejects proposal |
 
 Applications use teamName, captainName, captainContact and players: [{name,studentId,shirtNumber,position}]. Results use homeScore, awayScore and goals: [{playerId,ownGoal}]. Proposals use applicationId, removeIds and replacements with the same player fields. Review requests use status accepted/rejected. Window requests use open true/false.
+
+Tournament creation/editing requires name and startDate (a real YYYY-MM-DD calendar day), with optional description and venue. Public responses expose start_date. Existing records without the newly introduced date show Date not set until the owner edits them.
