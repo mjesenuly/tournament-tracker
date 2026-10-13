@@ -1,3 +1,5 @@
-import { createApp } from './app.js';
+import { createApp } from "./app.js";
 const port = Number(process.env.PORT || 3001);
-createApp().listen(port, '0.0.0.0', () => console.log(`Tournament Tracker API on http://localhost:${port}`));
+createApp().listen(port, "0.0.0.0", () =>
+  console.log(`Tournament Tracker API on http://localhost:${port}`),
+);
