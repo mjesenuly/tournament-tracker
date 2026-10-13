@@ -1,9 +1,251 @@
-import type {DatabaseSync} from 'node:sqlite';import type {Express} from 'express';import type {createAuth} from './auth.js';import {transaction} from './db.js';import {id,validatePlayers,normalizeId} from './applications.js';
-export function registerRosters(app:Express,db:DatabaseSync,auth:ReturnType<typeof createAuth>){
- const active=(team:string)=>db.prepare('SELECT p.* FROM players p JOIN memberships m ON m.player_id=p.id WHERE m.application_id=? AND m.removed_at IS NULL').all(team);const version=(team:string)=>active(team).map(p=>String(p.id)).sort().join(',');
- function validate(team:string,changes:any){const members=active(team);if(!Array.isArray(changes.removeIds)||!changes.removeIds.length||new Set(changes.removeIds).size!==changes.removeIds.length||changes.removeIds.some((x:string)=>!members.some(p=>p.id===x)))throw Error('Select distinct active players to remove.');if(!Array.isArray(changes.replacements)||changes.replacements.length>changes.removeIds.length)throw Error('Replacements cannot exceed removals.');const final=[...members.filter(p=>!changes.removeIds.includes(p.id)).map(p=>({name:p.name,studentId:p.student_id,shirtNumber:p.shirt_number,position:p.position})),...changes.replacements];validatePlayers(final);return members;}
- app.post('/api/tournaments/:id/roster-window',auth.requireUser,auth.requireOwner,(req,res)=>{try{const t=db.prepare('SELECT * FROM tournaments WHERE id=?').get(String(req.params.id));const count=db.prepare("SELECT COUNT(*) total,SUM(CASE WHEN status='finished' THEN 1 ELSE 0 END) finished FROM fixtures WHERE tournament_id=?").get(String(req.params.id));if(t?.status!=='ongoing'||!count?.total||Number(count.finished)<Math.ceil(Number(count.total)/2))throw Error('The window requires an ongoing tournament with at least half its matches completed.');if(req.body.open===true){if(t.window_state!=='not_opened')throw Error('The second window can only be opened once.');db.prepare("UPDATE tournaments SET window_state='open' WHERE id=?").run(String(req.params.id));}else if(req.body.open===false){if(t.window_state!=='open')throw Error('The window is not open.');db.prepare("UPDATE tournaments SET window_state='closed' WHERE id=?").run(String(req.params.id));}else throw Error('Choose open or close.');res.json({ok:true});}catch(e){res.status(400).json({error:(e as Error).message});}});
- app.get('/api/tournaments/:id/roster-requests',auth.requireUser,(req,res)=>{const t=db.prepare('SELECT organizer_id FROM tournaments WHERE id=?').get(String(req.params.id));const owner=res.locals.user.role==='organizer'&&t?.organizer_id===res.locals.user.id;const rows=owner?db.prepare('SELECT r.*,a.team_name FROM roster_requests r JOIN applications a ON a.id=r.application_id WHERE a.tournament_id=?').all(String(req.params.id)):db.prepare('SELECT r.*,a.team_name FROM roster_requests r JOIN applications a ON a.id=r.application_id WHERE a.tournament_id=? AND r.captain_id=?').all(String(req.params.id),res.locals.user.id);res.json(rows.map(r=>({...r,changes:JSON.parse(String(r.changes_json))})));});
- app.post('/api/tournaments/:id/roster-requests',auth.requireUser,(req,res)=>{try{const t=db.prepare('SELECT * FROM tournaments WHERE id=?').get(String(req.params.id));if(t?.status!=='ongoing'||t.window_state!=='open')throw Error('The replacement window is closed.');const a=db.prepare("SELECT * FROM applications WHERE id=? AND tournament_id=? AND captain_id=? AND status='accepted'").get(String(req.body.applicationId),String(req.params.id),res.locals.user.id);if(!a)throw Error('Your accepted team is required.');validate(String(a.id),req.body);if(db.prepare("SELECT id FROM roster_requests WHERE application_id=? AND status='pending'").get(String(a.id)))throw Error('You already have a pending replacement request.');const changes={removeIds:req.body.removeIds,replacements:req.body.replacements.map((p:any)=>({...p,studentId:normalizeId(p.studentId)})),version:version(String(a.id))};const requestId=id();db.prepare('INSERT INTO roster_requests(id,application_id,captain_id,changes_json) VALUES(?,?,?,?)').run(requestId,String(a.id),res.locals.user.id,JSON.stringify(changes));res.status(201).json({id:requestId});}catch(e){res.status(400).json({error:(e as Error).message});}});
- app.post('/api/tournaments/:id/roster-requests/:requestId/review',auth.requireUser,auth.requireOwner,(req,res)=>{try{if(!['accepted','rejected'].includes(req.body.status))throw Error('Choose accept or reject.');transaction(db,()=>{const t=db.prepare('SELECT * FROM tournaments WHERE id=?').get(String(req.params.id));if(t?.status!=='ongoing'||t.window_state!=='open')throw Error('The replacement window is closed.');const r=db.prepare("SELECT r.* FROM roster_requests r JOIN applications a ON a.id=r.application_id WHERE r.id=? AND a.tournament_id=? AND r.status='pending'").get(String(req.params.requestId),String(req.params.id));if(!r)throw Error('Pending request not found.');if(req.body.status==='accepted'){const changes=JSON.parse(String(r.changes_json));if(version(String(r.application_id))!==changes.version)throw Error('The active roster changed; submit a fresh request.');validate(String(r.application_id),changes);for(const playerId of changes.removeIds)db.prepare('UPDATE memberships SET removed_at=CURRENT_TIMESTAMP WHERE player_id=? AND removed_at IS NULL').run(playerId);for(const p of changes.replacements){const reserved=db.prepare('SELECT application_id FROM eligibility WHERE tournament_id=? AND student_id=?').get(String(req.params.id),p.studentId);if(reserved&&reserved.application_id!==r.application_id)throw Error('Replacement player belonged to another team in this tournament.');const existing=db.prepare('SELECT id FROM players WHERE application_id=? AND student_id=?').get(String(r.application_id),p.studentId);let playerId=String(existing?.id||id());if(existing)db.prepare('UPDATE players SET name=?,shirt_number=?,position=? WHERE id=?').run(p.name,p.shirtNumber,p.position,playerId);else db.prepare('INSERT INTO players VALUES(?,?,?,?,?,?,?)').run(playerId,String(req.params.id),String(r.application_id),p.name,p.studentId,p.shirtNumber,p.position);db.prepare('INSERT OR IGNORE INTO eligibility VALUES(?,?,?)').run(String(req.params.id),p.studentId,String(r.application_id));db.prepare('INSERT INTO memberships(player_id,application_id) VALUES(?,?)').run(playerId,String(r.application_id));}}db.prepare('UPDATE roster_requests SET status=? WHERE id=?').run(req.body.status,String(r.id));});res.json({ok:true});}catch(e){res.status(400).json({error:(e as Error).message});}});
+import type { DatabaseSync } from "node:sqlite";
+import type { Express } from "express";
+import type { createAuth } from "./auth.js";
+import { transaction } from "./db.js";
+import { id, validatePlayers, normalizeId } from "./applications.js";
+export function registerRosters(
+  app: Express,
+  db: DatabaseSync,
+  auth: ReturnType<typeof createAuth>,
+) {
+  const active = (team: string) =>
+    db
+      .prepare(
+        "SELECT p.* FROM players p JOIN memberships m ON m.player_id=p.id WHERE m.application_id=? AND m.removed_at IS NULL",
+      )
+      .all(team);
+  const version = (team: string) =>
+    active(team)
+      .map((p) => String(p.id))
+      .sort()
+      .join(",");
+  function validate(team: string, changes: any) {
+    const members = active(team);
+    if (
+      !Array.isArray(changes.removeIds) ||
+      !changes.removeIds.length ||
+      new Set(changes.removeIds).size !== changes.removeIds.length ||
+      changes.removeIds.some((x: string) => !members.some((p) => p.id === x))
+    )
+      throw Error("Select distinct active players to remove.");
+    if (
+      !Array.isArray(changes.replacements) ||
+      changes.replacements.length > changes.removeIds.length
+    )
+      throw Error("Replacements cannot exceed removals.");
+    const final = [
+      ...members
+        .filter((p) => !changes.removeIds.includes(p.id))
+        .map((p) => ({
+          name: p.name,
+          studentId: p.student_id,
+          shirtNumber: p.shirt_number,
+          position: p.position,
+        })),
+      ...changes.replacements,
+    ];
+    validatePlayers(final);
+    return members;
+  }
+  app.post(
+    "/api/tournaments/:id/roster-window",
+    auth.requireUser,
+    auth.requireOwner,
+    (req, res) => {
+      try {
+        const t = db
+          .prepare("SELECT * FROM tournaments WHERE id=?")
+          .get(String(req.params.id));
+        const count = db
+          .prepare(
+            "SELECT COUNT(*) total,SUM(CASE WHEN status='finished' THEN 1 ELSE 0 END) finished FROM fixtures WHERE tournament_id=?",
+          )
+          .get(String(req.params.id));
+        if (
+          t?.status !== "ongoing" ||
+          !count?.total ||
+          Number(count.finished) < Math.ceil(Number(count.total) / 2)
+        )
+          throw Error(
+            "The window requires an ongoing tournament with at least half its matches completed.",
+          );
+        if (req.body.open === true) {
+          if (t.window_state !== "not_opened")
+            throw Error("The second window can only be opened once.");
+          db.prepare(
+            "UPDATE tournaments SET window_state='open' WHERE id=?",
+          ).run(String(req.params.id));
+        } else if (req.body.open === false) {
+          if (t.window_state !== "open") throw Error("The window is not open.");
+          db.prepare(
+            "UPDATE tournaments SET window_state='closed' WHERE id=?",
+          ).run(String(req.params.id));
+        } else throw Error("Choose open or close.");
+        res.json({ ok: true });
+      } catch (e) {
+        res.status(400).json({ error: (e as Error).message });
+      }
+    },
+  );
+  app.get(
+    "/api/tournaments/:id/roster-requests",
+    auth.requireUser,
+    (req, res) => {
+      const t = db
+        .prepare("SELECT organizer_id FROM tournaments WHERE id=?")
+        .get(String(req.params.id));
+      const owner =
+        res.locals.user.role === "organizer" &&
+        t?.organizer_id === res.locals.user.id;
+      const rows = owner
+        ? db
+            .prepare(
+              "SELECT r.*,a.team_name FROM roster_requests r JOIN applications a ON a.id=r.application_id WHERE a.tournament_id=?",
+            )
+            .all(String(req.params.id))
+        : db
+            .prepare(
+              "SELECT r.*,a.team_name FROM roster_requests r JOIN applications a ON a.id=r.application_id WHERE a.tournament_id=? AND r.captain_id=?",
+            )
+            .all(String(req.params.id), res.locals.user.id);
+      res.json(
+        rows.map((r) => ({
+          ...r,
+          changes: JSON.parse(String(r.changes_json)),
+        })),
+      );
+    },
+  );
+  app.post(
+    "/api/tournaments/:id/roster-requests",
+    auth.requireUser,
+    (req, res) => {
+      try {
+        const t = db
+          .prepare("SELECT * FROM tournaments WHERE id=?")
+          .get(String(req.params.id));
+        if (t?.status !== "ongoing" || t.window_state !== "open")
+          throw Error("The replacement window is closed.");
+        const a = db
+          .prepare(
+            "SELECT * FROM applications WHERE id=? AND tournament_id=? AND captain_id=? AND status='accepted'",
+          )
+          .get(
+            String(req.body.applicationId),
+            String(req.params.id),
+            res.locals.user.id,
+          );
+        if (!a) throw Error("Your accepted team is required.");
+        validate(String(a.id), req.body);
+        if (
+          db
+            .prepare(
+              "SELECT id FROM roster_requests WHERE application_id=? AND status='pending'",
+            )
+            .get(String(a.id))
+        )
+          throw Error("You already have a pending replacement request.");
+        const changes = {
+          removeIds: req.body.removeIds,
+          replacements: req.body.replacements.map((p: any) => ({
+            ...p,
+            studentId: normalizeId(p.studentId),
+          })),
+          version: version(String(a.id)),
+        };
+        const requestId = id();
+        db.prepare(
+          "INSERT INTO roster_requests(id,application_id,captain_id,changes_json) VALUES(?,?,?,?)",
+        ).run(
+          requestId,
+          String(a.id),
+          res.locals.user.id,
+          JSON.stringify(changes),
+        );
+        res.status(201).json({ id: requestId });
+      } catch (e) {
+        res.status(400).json({ error: (e as Error).message });
+      }
+    },
+  );
+  app.post(
+    "/api/tournaments/:id/roster-requests/:requestId/review",
+    auth.requireUser,
+    auth.requireOwner,
+    (req, res) => {
+      try {
+        if (!["accepted", "rejected"].includes(req.body.status))
+          throw Error("Choose accept or reject.");
+        transaction(db, () => {
+          const t = db
+            .prepare("SELECT * FROM tournaments WHERE id=?")
+            .get(String(req.params.id));
+          if (t?.status !== "ongoing" || t.window_state !== "open")
+            throw Error("The replacement window is closed.");
+          const r = db
+            .prepare(
+              "SELECT r.* FROM roster_requests r JOIN applications a ON a.id=r.application_id WHERE r.id=? AND a.tournament_id=? AND r.status='pending'",
+            )
+            .get(String(req.params.requestId), String(req.params.id));
+          if (!r) throw Error("Pending request not found.");
+          if (req.body.status === "accepted") {
+            const changes = JSON.parse(String(r.changes_json));
+            if (version(String(r.application_id)) !== changes.version)
+              throw Error("The active roster changed; submit a fresh request.");
+            validate(String(r.application_id), changes);
+            for (const playerId of changes.removeIds)
+              db.prepare(
+                "UPDATE memberships SET removed_at=CURRENT_TIMESTAMP WHERE player_id=? AND removed_at IS NULL",
+              ).run(playerId);
+            for (const p of changes.replacements) {
+              const reserved = db
+                .prepare(
+                  "SELECT application_id FROM eligibility WHERE tournament_id=? AND student_id=?",
+                )
+                .get(String(req.params.id), p.studentId);
+              if (reserved && reserved.application_id !== r.application_id)
+                throw Error(
+                  "Replacement player belonged to another team in this tournament.",
+                );
+              const existing = db
+                .prepare(
+                  "SELECT id FROM players WHERE application_id=? AND student_id=?",
+                )
+                .get(String(r.application_id), p.studentId);
+              let playerId = String(existing?.id || id());
+              if (existing)
+                db.prepare(
+                  "UPDATE players SET name=?,shirt_number=?,position=? WHERE id=?",
+                ).run(p.name, p.shirtNumber, p.position, playerId);
+              else
+                db.prepare("INSERT INTO players VALUES(?,?,?,?,?,?,?)").run(
+                  playerId,
+                  String(req.params.id),
+                  String(r.application_id),
+                  p.name,
+                  p.studentId,
+                  p.shirtNumber,
+                  p.position,
+                );
+              db.prepare("INSERT OR IGNORE INTO eligibility VALUES(?,?,?)").run(
+                String(req.params.id),
+                p.studentId,
+                String(r.application_id),
+              );
+              db.prepare(
+                "INSERT INTO memberships(player_id,application_id) VALUES(?,?)",
+              ).run(playerId, String(r.application_id));
+            }
+          }
+          db.prepare("UPDATE roster_requests SET status=? WHERE id=?").run(
+            req.body.status,
+            String(r.id),
+          );
+        });
+        res.json({ ok: true });
+      } catch (e) {
+        res.status(400).json({ error: (e as Error).message });
+      }
+    },
+  );
 }
