@@ -9,6 +9,6 @@
 | TT-05 | 2d0212d | Round robin and scheduling |
 | TT-06 | d7c6cd9 | Results, standings, goals; historical fix in TT-07 |
 | TT-07 | 6e6848d | Second window replacements and kickoff membership snapshots |
-| TT-08 | Recorded by orchestrator after commit | Regression, DOM interactions, readable formatting, CI and documentation |
+| TT-08 | 6733b07; start-date repair a1734dc | Regression, DOM interactions, readable formatting, CI and documentation |
 
 Source files were uploaded through the GitHub UI because direct authenticated git publishing was not available. GitHub creates separate publication commit hashes; original local hashes above are development evidence, not claims those commits exist remotely. The orchestrator records actual remote links in issue handoffs. Independent QA and actual issue statuses determine completion. Live provider sign-in is still unverified, and no cloud deployment has been performed.
