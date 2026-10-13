@@ -1,6 +1,15 @@
 # Proposed implementation task queue
 
-These are local PM task proposals, not real GitHub Issues. Each must be expanded into a detailed issue with acceptance criteria, tests, dependencies, and verified completion evidence. Product source: `plan.md`. GitHub issue URLs and actual status must be recorded only after creation. Goal/Description format follows the reviewed article's task decomposition; inaccessible example issue is not claimed reproduced exactly.
+This file archives the initial Goal/Description decomposition. The canonical detailed backlog is `_docs/issues/01.md` through `08.md`, paired with actual GitHub issues below. The inaccessible example issue is not claimed reproduced exactly. Current status is in `submission-status.md`; initial proposals below are retained as planning evidence.
+
+- [TT-01](https://github.com/mjesenuly/tournament-tracker/issues/1) — see `issues/01.md`.
+- [TT-02](https://github.com/mjesenuly/tournament-tracker/issues/2) — see `issues/02.md`.
+- [TT-03](https://github.com/mjesenuly/tournament-tracker/issues/3) — see `issues/03.md`.
+- [TT-04](https://github.com/mjesenuly/tournament-tracker/issues/4) — see `issues/04.md`.
+- [TT-05](https://github.com/mjesenuly/tournament-tracker/issues/5) — see `issues/05.md`.
+- [TT-06](https://github.com/mjesenuly/tournament-tracker/issues/6) — see `issues/06.md`.
+- [TT-07](https://github.com/mjesenuly/tournament-tracker/issues/7) — see `issues/07.md`.
+- [TT-08](https://github.com/mjesenuly/tournament-tracker/issues/8) — see `issues/08.md`.
 
 ## TT-01 — Establish persistence and application foundation
 
