@@ -1,6 +1,154 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {openDatabase} from '../server/db.js';import {createAuth} from '../server/auth.js';import {publicTeam} from '../server/projections.js';
-function response(){const r:any={locals:{},code:200,data:null,cookieValue:'',status(n:number){this.code=n;return this;},json(d:unknown){this.data=d;return this;},cookie(_n:string,v:string){this.cookieValue=v;return this;},clearCookie(){return this;}};return r;}
-test('Google token verification nonce allowlist sessions CSRF expiry and logout',async()=>{const db=openDatabase(':memory:');let clock=100;let nonce='';const auth=createAuth(db,{clientId:'test',organizers:['organizer@test.invalid'],now:()=>clock,verify:async()=>({sub:'google-1',email:'organizer@test.invalid',email_verified:true,nonce,name:'Organizer'})});let r=response();auth.config({} as any,r);nonce=r.data.nonce;r=response();await auth.google({headers:{cookie:`tt_login=${nonce}`},body:{nonce,credential:'verified-by-injected-test-verifier',role:'captain'}} as any,r);assert.equal(r.code,200);assert.equal(r.data.user.role,'organizer');const token=r.cookieValue,csrf=r.data.csrf;const req:any={headers:{cookie:`tt_session=${token}`},method:'POST'};let called=false;let denied=response();auth.requireUser(req,denied,()=>{called=true;});assert.equal(denied.code,403);assert.equal(called,false);req.headers['x-csrf-token']=csrf;auth.requireUser(req,response(),()=>{called=true;});assert.equal(called,true);clock+=9*60*60*1000;assert.equal(auth.session(req),undefined);auth.logout(req,response());assert.equal(db.prepare('SELECT COUNT(*) n FROM sessions').get()?.n,0);db.close();});
-test('invalid or replayed challenges fail; demo disabled in production',async()=>{const db=openDatabase(':memory:');const auth=createAuth(db,{demo:true,production:true,verify:async()=>{throw Error('bad')}});const r=response();await auth.google({headers:{},body:{credential:'bad'}} as any,r);assert.equal(r.code,401);const d=response();auth.demoLogin({body:{role:'organizer'}} as any,d);assert.equal(d.code,404);db.close();});
-test('public projection whitelists fields and excludes private identifiers',()=>{const t=publicTeam({id:'t',team_name:'Team',captain_contact:'secret'},[{id:'p',name:'Player',student_id:'private',shirt_number:1,position:'Goalkeeper'}]);assert.ok(!JSON.stringify(t).includes('secret'));assert.ok(!JSON.stringify(t).includes('private'));});
-test('owner authorization rejects captain and another organizer',()=>{const db=openDatabase(':memory:');db.prepare('INSERT INTO users VALUES(?,?,?,?,?)').run('o',null,'o@test','Owner','organizer');db.prepare('INSERT INTO tournaments(id,organizer_id,name) VALUES(?,?,?)').run('t','o','Cup');const auth=createAuth(db);for(const user of [{id:'o',role:'captain'},{id:'other',role:'organizer'}]){const r=response();r.locals.user=user;auth.requireOwner({params:{id:'t'}} as any,r,()=>assert.fail('Unauthorized'));assert.equal(r.code,403);}const r=response();r.locals.user={id:'o',role:'organizer'};let ok=false;auth.requireOwner({params:{id:'t'}} as any,r,()=>{ok=true;});assert.ok(ok);db.close();});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { openDatabase } from "../server/db.js";
+import { createAuth } from "../server/auth.js";
+import { publicTeam } from "../server/projections.js";
+function response() {
+  const r: any = {
+    locals: {},
+    code: 200,
+    data: null,
+    cookieValue: "",
+    status(n: number) {
+      this.code = n;
+      return this;
+    },
+    json(d: unknown) {
+      this.data = d;
+      return this;
+    },
+    cookie(_n: string, v: string) {
+      this.cookieValue = v;
+      return this;
+    },
+    clearCookie() {
+      return this;
+    },
+  };
+  return r;
+}
+test("Google token verification nonce allowlist sessions CSRF expiry and logout", async () => {
+  const db = openDatabase(":memory:");
+  let clock = 100;
+  let nonce = "";
+  const auth = createAuth(db, {
+    clientId: "test",
+    organizers: ["organizer@test.invalid"],
+    now: () => clock,
+    verify: async () => ({
+      sub: "google-1",
+      email: "organizer@test.invalid",
+      email_verified: true,
+      nonce,
+      name: "Organizer",
+    }),
+  });
+  let r = response();
+  auth.config({} as any, r);
+  nonce = r.data.nonce;
+  r = response();
+  await auth.google(
+    {
+      headers: { cookie: `tt_login=${nonce}` },
+      body: {
+        nonce,
+        credential: "verified-by-injected-test-verifier",
+        role: "captain",
+      },
+    } as any,
+    r,
+  );
+  assert.equal(r.code, 200);
+  assert.equal(r.data.user.role, "organizer");
+  const token = r.cookieValue,
+    csrf = r.data.csrf;
+  const req: any = {
+    headers: { cookie: `tt_session=${token}` },
+    method: "POST",
+  };
+  let called = false;
+  let denied = response();
+  auth.requireUser(req, denied, () => {
+    called = true;
+  });
+  assert.equal(denied.code, 403);
+  assert.equal(called, false);
+  req.headers["x-csrf-token"] = csrf;
+  auth.requireUser(req, response(), () => {
+    called = true;
+  });
+  assert.equal(called, true);
+  clock += 9 * 60 * 60 * 1000;
+  assert.equal(auth.session(req), undefined);
+  auth.logout(req, response());
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM sessions").get()?.n, 0);
+  db.close();
+});
+test("invalid or replayed challenges fail; demo disabled in production", async () => {
+  const db = openDatabase(":memory:");
+  const auth = createAuth(db, {
+    demo: true,
+    production: true,
+    verify: async () => {
+      throw Error("bad");
+    },
+  });
+  const r = response();
+  await auth.google({ headers: {}, body: { credential: "bad" } } as any, r);
+  assert.equal(r.code, 401);
+  const d = response();
+  auth.demoLogin({ body: { role: "organizer" } } as any, d);
+  assert.equal(d.code, 404);
+  db.close();
+});
+test("public projection whitelists fields and excludes private identifiers", () => {
+  const t = publicTeam(
+    { id: "t", team_name: "Team", captain_contact: "secret" },
+    [
+      {
+        id: "p",
+        name: "Player",
+        student_id: "private",
+        shirt_number: 1,
+        position: "Goalkeeper",
+      },
+    ],
+  );
+  assert.ok(!JSON.stringify(t).includes("secret"));
+  assert.ok(!JSON.stringify(t).includes("private"));
+});
+test("owner authorization rejects captain and another organizer", () => {
+  const db = openDatabase(":memory:");
+  db.prepare("INSERT INTO users VALUES(?,?,?,?,?)").run(
+    "o",
+    null,
+    "o@test",
+    "Owner",
+    "organizer",
+  );
+  db.prepare("INSERT INTO tournaments(id,organizer_id,name) VALUES(?,?,?)").run(
+    "t",
+    "o",
+    "Cup",
+  );
+  const auth = createAuth(db);
+  for (const user of [
+    { id: "o", role: "captain" },
+    { id: "other", role: "organizer" },
+  ]) {
+    const r = response();
+    r.locals.user = user;
+    auth.requireOwner({ params: { id: "t" } } as any, r, () =>
+      assert.fail("Unauthorized"),
+    );
+    assert.equal(r.code, 403);
+  }
+  const r = response();
+  r.locals.user = { id: "o", role: "organizer" };
+  let ok = false;
+  auth.requireOwner({ params: { id: "t" } } as any, r, () => {
+    ok = true;
+  });
+  assert.ok(ok);
+  db.close();
+});
