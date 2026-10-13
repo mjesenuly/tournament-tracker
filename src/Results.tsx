@@ -1,3 +1,240 @@
-import React,{useEffect,useState} from 'react';
-export function ResultEditor({fixture,tournamentId,csrf,onChange}:{fixture:any;tournamentId:string;csrf:string;onChange:()=>void}){const[open,setOpen]=useState(false),[players,setPlayers]=useState<any[]>([]),[goals,setGoals]=useState<any[]>([]),[error,setError]=useState(''),[scores,setScores]=useState([fixture.home_score||0,fixture.away_score||0]);useEffect(()=>{if(open){fetch(`/api/tournaments/${tournamentId}/fixtures/${fixture.id}/players`).then(r=>r.json()).then(setPlayers);fetch(`/api/tournaments/${tournamentId}/fixtures/${fixture.id}/goals`).then(r=>r.json()).then(setGoals);}},[open]);return <div><button onClick={()=>setOpen(!open)}>{fixture.status==='finished'?'Correct result':'Record result'}</button>{open&&<form onSubmit={async e=>{e.preventDefault();setError('');try{const r=await fetch(`/api/tournaments/${tournamentId}/fixtures/${fixture.id}/result`,{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({homeScore:Number(scores[0]),awayScore:Number(scores[1]),goals})});const d=await r.json();if(!r.ok)throw Error(d.error);setOpen(false);onChange();}catch(e){setError((e as Error).message);}}}>{error&&<p className="error">{error}</p>}<div className="schedule">{[fixture.home_name,fixture.away_name].map((name,i)=><label key={i}>{name} score<input type="number" min={0} max={100} required value={scores[i]} onChange={e=>setScores(scores.map((s,j)=>j===i?Number(e.target.value):s))}/></label>)}</div><h3>Goal events</h3>{goals.map((g,i)=><div className="actions" key={i}><select required value={g.playerId} onChange={e=>setGoals(goals.map((x,j)=>j===i?{...x,playerId:e.target.value}:x))}><option value="">Select scorer</option>{players.map(p=><option key={p.id} value={p.id}>{p.shirt_number} · {p.name} ({p.team_id===fixture.home_id?fixture.home_name:fixture.away_name})</option>)}</select><label className="check"><input type="checkbox" checked={g.ownGoal} onChange={e=>setGoals(goals.map((x,j)=>j===i?{...x,ownGoal:e.target.checked}:x))}/>Own goal</label><button type="button" onClick={()=>setGoals(goals.filter((_,j)=>j!==i))}>Remove</button></div>)}<div className="actions"><button type="button" onClick={()=>setGoals([...goals,{playerId:'',ownGoal:false}])}>Add goal</button><button className="primary">Save result</button></div><p className="muted">Each score must match its goal events. Own goals credit the opposing team.</p></form>}</div>;}
-export function Statistics({tournament:t}:{tournament:any}){return <><section className="panel"><h2>Standings</h2>{t.champions?.length>0&&<p className="champions">{t.champions.length>1?'Shared champions':'Champion'}: {t.champions.map((x:any)=>x.name).join(' · ')}</p>}<div className="table-wrap"><table><thead><tr>{['Rank','Team','P','W','D','L','GF','GA','GD','Pts'].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{t.standings?.map((r:any)=><tr key={r.id}>{[r.rank,r.name,r.played,r.wins,r.draws,r.losses,r.gf,r.ga,r.gd,r.points].map((x,i)=><td key={i}>{x}</td>)}</tr>)}</tbody></table></div><p className="muted">Win 3 · Draw 1 · Loss 0. Tiebreakers: points, goal difference, goals scored. Exact ties share a rank.</p></section><section className="panel"><h2>Top scorers</h2>{t.scorers?.length?<table><thead><tr><th>Player</th><th>Team</th><th>Goals</th></tr></thead><tbody>{t.scorers.map((p:any)=><tr key={p.id}><td>{p.name}</td><td>{p.team_name}</td><td>{p.goals}</td></tr>)}</tbody></table>:<p>No goals recorded yet.</p>}</section></>;}
+import React, { useEffect, useState } from "react";
+export function ResultEditor({
+  fixture,
+  tournamentId,
+  csrf,
+  onChange,
+}: {
+  fixture: any;
+  tournamentId: string;
+  csrf: string;
+  onChange: () => void;
+}) {
+  const [open, setOpen] = useState(false),
+    [players, setPlayers] = useState<any[]>([]),
+    [goals, setGoals] = useState<any[]>([]),
+    [error, setError] = useState(""),
+    [scores, setScores] = useState([
+      fixture.home_score || 0,
+      fixture.away_score || 0,
+    ]);
+  useEffect(() => {
+    if (open) {
+      fetch(`/api/tournaments/${tournamentId}/fixtures/${fixture.id}/players`)
+        .then((r) => r.json())
+        .then(setPlayers);
+      fetch(`/api/tournaments/${tournamentId}/fixtures/${fixture.id}/goals`)
+        .then((r) => r.json())
+        .then(setGoals);
+    }
+  }, [open]);
+  return (
+    <div>
+      <button onClick={() => setOpen(!open)}>
+        {fixture.status === "finished" ? "Correct result" : "Record result"}
+      </button>
+      {open && (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError("");
+            try {
+              const r = await fetch(
+                `/api/tournaments/${tournamentId}/fixtures/${fixture.id}/result`,
+                {
+                  method: "PUT",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": csrf,
+                  },
+                  body: JSON.stringify({
+                    homeScore: Number(scores[0]),
+                    awayScore: Number(scores[1]),
+                    goals,
+                  }),
+                },
+              );
+              const d = await r.json();
+              if (!r.ok) throw Error(d.error);
+              setOpen(false);
+              onChange();
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        >
+          {error && <p className="error">{error}</p>}
+          <div className="schedule">
+            {[fixture.home_name, fixture.away_name].map((name, i) => (
+              <label key={i}>
+                {name} score
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  required
+                  value={scores[i]}
+                  onChange={(e) =>
+                    setScores(
+                      scores.map((s, j) =>
+                        j === i ? Number(e.target.value) : s,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <h3>Goal events</h3>
+          {goals.map((g, i) => (
+            <div className="actions" key={i}>
+              <select
+                required
+                value={g.playerId}
+                onChange={(e) =>
+                  setGoals(
+                    goals.map((x, j) =>
+                      j === i ? { ...x, playerId: e.target.value } : x,
+                    ),
+                  )
+                }
+              >
+                <option value="">Select scorer</option>
+                {players.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.shirt_number} · {p.name} (
+                    {p.team_id === fixture.home_id
+                      ? fixture.home_name
+                      : fixture.away_name}
+                    )
+                  </option>
+                ))}
+              </select>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={g.ownGoal}
+                  onChange={(e) =>
+                    setGoals(
+                      goals.map((x, j) =>
+                        j === i ? { ...x, ownGoal: e.target.checked } : x,
+                      ),
+                    )
+                  }
+                />
+                Own goal
+              </label>
+              <button
+                type="button"
+                onClick={() => setGoals(goals.filter((_, j) => j !== i))}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <div className="actions">
+            <button
+              type="button"
+              onClick={() =>
+                setGoals([...goals, { playerId: "", ownGoal: false }])
+              }
+            >
+              Add goal
+            </button>
+            <button className="primary">Save result</button>
+          </div>
+          <p className="muted">
+            Each score must match its goal events. Own goals credit the opposing
+            team.
+          </p>
+        </form>
+      )}
+    </div>
+  );
+}
+export function Statistics({ tournament: t }: { tournament: any }) {
+  return (
+    <>
+      <section className="panel">
+        <h2>Standings</h2>
+        {t.champions?.length > 0 && (
+          <p className="champions">
+            {t.champions.length > 1 ? "Shared champions" : "Champion"}:{" "}
+            {t.champions.map((x: any) => x.name).join(" · ")}
+          </p>
+        )}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {[
+                  "Rank",
+                  "Team",
+                  "P",
+                  "W",
+                  "D",
+                  "L",
+                  "GF",
+                  "GA",
+                  "GD",
+                  "Pts",
+                ].map((x) => (
+                  <th key={x}>{x}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {t.standings?.map((r: any) => (
+                <tr key={r.id}>
+                  {[
+                    r.rank,
+                    r.name,
+                    r.played,
+                    r.wins,
+                    r.draws,
+                    r.losses,
+                    r.gf,
+                    r.ga,
+                    r.gd,
+                    r.points,
+                  ].map((x, i) => (
+                    <td key={i}>{x}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted">
+          Win 3 · Draw 1 · Loss 0. Tiebreakers: points, goal difference, goals
+          scored. Exact ties share a rank.
+        </p>
+      </section>
+      <section className="panel">
+        <h2>Top scorers</h2>
+        {t.scorers?.length ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Team</th>
+                <th>Goals</th>
+              </tr>
+            </thead>
+            <tbody>
+              {t.scorers.map((p: any) => (
+                <tr key={p.id}>
+                  <td>{p.name}</td>
+                  <td>{p.team_name}</td>
+                  <td>{p.goals}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No goals recorded yet.</p>
+        )}
+      </section>
+    </>
+  );
+}
