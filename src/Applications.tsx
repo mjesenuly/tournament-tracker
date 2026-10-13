@@ -1,8 +1,250 @@
-import React,{useEffect,useState} from 'react';
-const positions=['Goalkeeper','Defender','Midfielder','Forward'];const blank=(i:number)=>({name:'',studentId:'',shirtNumber:i+1,position:i===0?'Goalkeeper':'Defender'});
-export function Applications({tournament,user,csrf,onChange}:{tournament:any;user:any;csrf:string;onChange:()=>void}){const[applications,setApplications]=useState<any[]>([]),[show,setShow]=useState(false),[players,setPlayers]=useState(Array.from({length:6},(_,i)=>blank(i))),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- async function call(path:string,method='GET',body?:unknown){const r=await fetch('/api/tournaments/'+tournament.id+'/applications'+path,{method,headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(d.error);return d;}const load=()=>call('').then(setApplications).catch(e=>setError(e.message));useEffect(()=>{if(user)load();},[tournament.id,user?.id]);if(!user)return <section className="panel"><h2>Enter your team</h2><p>Sign in with Google to submit a team application.</p></section>;
- async function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError('');const f=new FormData(e.currentTarget);try{await call('','POST',{...Object.fromEntries(f),players});setShow(false);await load();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- async function review(id:string,status:string){setError('');try{await call('/'+id+'/review','POST',{status});await load();onChange();}catch(e){setError((e as Error).message);}}
- return <section className="panel"><h2>{tournament.canManage?'Team applications':'Your team application'}</h2>{error&&<p className="error" role="alert">{error}</p>}{tournament.status==='registration'&&!tournament.canManage&&<button onClick={()=>setShow(!show)}>Apply with a team</button>}{show&&<form onSubmit={submit}><label>Team name<input name="teamName" required minLength={2} maxLength={100}/></label><label>Captain name<input name="captainName" required defaultValue={user.name}/></label><label>Captain contact (phone or email)<input name="captainContact" required defaultValue={user.email}/></label><h3>Players · {players.length}/13</h3><p className="muted">6–13 players, including at least one goalkeeper. Student IDs and captain contacts are private.</p>{players.map((p,i)=><div className="player-row" key={i}><label>Name<input required value={p.name} onChange={e=>setPlayers(players.map((x,j)=>j===i?{...x,name:e.target.value}:x))}/></label><label>Student ID<input required value={p.studentId} onChange={e=>setPlayers(players.map((x,j)=>j===i?{...x,studentId:e.target.value}:x))}/></label><label>Shirt number<input type="number" required min={1} max={99} value={p.shirtNumber} onChange={e=>setPlayers(players.map((x,j)=>j===i?{...x,shirtNumber:Number(e.target.value)}:x))}/></label><label>Position<select value={p.position} onChange={e=>setPlayers(players.map((x,j)=>j===i?{...x,position:e.target.value}:x))}>{positions.map(s=><option key={s}>{s}</option>)}</select></label>{players.length>6&&<button type="button" onClick={()=>setPlayers(players.filter((_,j)=>j!==i))}>Remove</button>}</div>)}<div className="actions">{players.length<13&&<button type="button" onClick={()=>setPlayers([...players,blank(players.length)])}>Add player</button>}<button className="primary" disabled={busy}>{busy?'Submitting…':'Submit application'}</button></div></form>}{applications.length?applications.map(a=><article className="application" key={a.id}><span className="status">{a.status}</span><h3>{a.team_name}</h3><p>{a.captain_name} · {a.captain_contact}</p><div className="table-wrap"><table><thead><tr><th>Player</th><th>Student ID (private)</th><th>No.</th><th>Position</th></tr></thead><tbody>{a.players.map((p:any)=><tr key={p.id}><td>{p.name}</td><td>{p.student_id}</td><td>{p.shirt_number}</td><td>{p.position}</td></tr>)}</tbody></table></div>{tournament.canManage&&a.status==='pending'&&<div className="actions"><button className="primary" onClick={()=>review(a.id,'accepted')}>Accept team</button><button onClick={()=>review(a.id,'rejected')}>Reject</button></div>}</article>):<p>No applications yet.</p>}</section>;
+import React, { useEffect, useState } from "react";
+const positions = ["Goalkeeper", "Defender", "Midfielder", "Forward"];
+const blank = (i: number) => ({
+  name: "",
+  studentId: "",
+  shirtNumber: i + 1,
+  position: i === 0 ? "Goalkeeper" : "Defender",
+});
+export function Applications({
+  tournament,
+  user,
+  csrf,
+  onChange,
+}: {
+  tournament: any;
+  user: any;
+  csrf: string;
+  onChange: () => void;
+}) {
+  const [applications, setApplications] = useState<any[]>([]),
+    [show, setShow] = useState(false),
+    [players, setPlayers] = useState(
+      Array.from({ length: 6 }, (_, i) => blank(i)),
+    ),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  async function call(path: string, method = "GET", body?: unknown) {
+    const r = await fetch(
+      "/api/tournaments/" + tournament.id + "/applications" + path,
+      {
+        method,
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+    );
+    const d = await r.json();
+    if (!r.ok) throw Error(d.error);
+    return d;
+  }
+  const load = () =>
+    call("")
+      .then(setApplications)
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    if (user) load();
+  }, [tournament.id, user?.id]);
+  if (!user)
+    return (
+      <section className="panel">
+        <h2>Enter your team</h2>
+        <p>Sign in with Google to submit a team application.</p>
+      </section>
+    );
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const f = new FormData(e.currentTarget);
+    try {
+      await call("", "POST", { ...Object.fromEntries(f), players });
+      setShow(false);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function review(id: string, status: string) {
+    setError("");
+    try {
+      await call("/" + id + "/review", "POST", { status });
+      await load();
+      onChange();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  return (
+    <section className="panel">
+      <h2>
+        {tournament.canManage ? "Team applications" : "Your team application"}
+      </h2>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {tournament.status === "registration" && !tournament.canManage && (
+        <button onClick={() => setShow(!show)}>Apply with a team</button>
+      )}
+      {show && (
+        <form onSubmit={submit}>
+          <label>
+            Team name
+            <input name="teamName" required minLength={2} maxLength={100} />
+          </label>
+          <label>
+            Captain name
+            <input name="captainName" required defaultValue={user.name} />
+          </label>
+          <label>
+            Captain contact (phone or email)
+            <input name="captainContact" required defaultValue={user.email} />
+          </label>
+          <h3>Players · {players.length}/13</h3>
+          <p className="muted">
+            6–13 players, including at least one goalkeeper. Student IDs and
+            captain contacts are private.
+          </p>
+          {players.map((p, i) => (
+            <div className="player-row" key={i}>
+              <label>
+                Name
+                <input
+                  required
+                  value={p.name}
+                  onChange={(e) =>
+                    setPlayers(
+                      players.map((x, j) =>
+                        j === i ? { ...x, name: e.target.value } : x,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                Student ID
+                <input
+                  required
+                  value={p.studentId}
+                  onChange={(e) =>
+                    setPlayers(
+                      players.map((x, j) =>
+                        j === i ? { ...x, studentId: e.target.value } : x,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                Shirt number
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={99}
+                  value={p.shirtNumber}
+                  onChange={(e) =>
+                    setPlayers(
+                      players.map((x, j) =>
+                        j === i
+                          ? { ...x, shirtNumber: Number(e.target.value) }
+                          : x,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                Position
+                <select
+                  value={p.position}
+                  onChange={(e) =>
+                    setPlayers(
+                      players.map((x, j) =>
+                        j === i ? { ...x, position: e.target.value } : x,
+                      ),
+                    )
+                  }
+                >
+                  {positions.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+              {players.length > 6 && (
+                <button
+                  type="button"
+                  onClick={() => setPlayers(players.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="actions">
+            {players.length < 13 && (
+              <button
+                type="button"
+                onClick={() => setPlayers([...players, blank(players.length)])}
+              >
+                Add player
+              </button>
+            )}
+            <button className="primary" disabled={busy}>
+              {busy ? "Submitting…" : "Submit application"}
+            </button>
+          </div>
+        </form>
+      )}
+      {applications.length ? (
+        applications.map((a) => (
+          <article className="application" key={a.id}>
+            <span className="status">{a.status}</span>
+            <h3>{a.team_name}</h3>
+            <p>
+              {a.captain_name} · {a.captain_contact}
+            </p>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Student ID (private)</th>
+                    <th>No.</th>
+                    <th>Position</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {a.players.map((p: any) => (
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
+                      <td>{p.student_id}</td>
+                      <td>{p.shirt_number}</td>
+                      <td>{p.position}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {tournament.canManage && a.status === "pending" && (
+              <div className="actions">
+                <button
+                  className="primary"
+                  onClick={() => review(a.id, "accepted")}
+                >
+                  Accept team
+                </button>
+                <button onClick={() => review(a.id, "rejected")}>Reject</button>
+              </div>
+            )}
+          </article>
+        ))
+      ) : (
+        <p>No applications yet.</p>
+      )}
+    </section>
+  );
 }
