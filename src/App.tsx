@@ -8,6 +8,7 @@ type Tournament = {
   id: string;
   name: string;
   description: string;
+  start_date?: string;
   venue: string;
   status: string;
   team_count: number;
@@ -251,6 +252,15 @@ export function App() {
               />
             </label>
             <label>
+              Start date
+              <input
+                name="startDate"
+                type="date"
+                required
+                defaultValue={selected?.start_date}
+              />
+            </label>
+            <label>
               Default venue
               <input
                 name="venue"
@@ -281,6 +291,9 @@ export function App() {
             >
               ← All tournaments
             </button>
+            <p className="muted">
+              Start date: {selected.start_date || "Date not set"}
+            </p>
             <div className="stats">
               <div>
                 <strong>{selected.team_count}</strong>
@@ -344,6 +357,7 @@ export function App() {
                   <span className={"status " + t.status}>{t.status}</span>
                   <h2>{t.name}</h2>
                   <p>{t.description || "University football tournament"}</p>
+                  <small>Starts {t.start_date || "Date not set"}</small>
                   <div>
                     {t.team_count} teams <span>·</span> {t.finished_count}/
                     {t.match_count} matches
